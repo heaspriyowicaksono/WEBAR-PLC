@@ -6,43 +6,126 @@
   <meta name="viewport"
         content="width=device-width, initial-scale=1.0">
 
-  <title>WEBAR PLC Siemens</title>
+  <title>WEBAR PLC - Interactive Video</title>
 
-  <!-- A-Frame -->
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-
-  <!-- MindAR -->
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
   <style>
+    * { box-sizing: border-box; }
+
     body {
       margin: 0;
+      font-family: Arial, sans-serif;
+      background: #000;
       overflow: hidden;
     }
 
-    #playButton {
+    #status {
       position: fixed;
-      bottom: 30px;
+      top: 18px;
       left: 50%;
       transform: translateX(-50%);
-      z-index: 9999;
-      background: #16a34a;
+      z-index: 100;
+      background: rgba(15,23,42,.88);
+      color: white;
+      padding: 12px 18px;
+      border-radius: 12px;
+      font-size: 13px;
+      text-align: center;
+      width: max-content;
+      max-width: 92%;
+    }
+
+    #player {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(90vw, 650px);
+      z-index: 200;
+      background: #101827;
+      padding: 12px;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      box-shadow: 0 10px 40px #0009;
+    }
+
+    #screen {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: black;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    #screen video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    button {
+      background: #2563eb;
       color: white;
       border: none;
-      border-radius: 10px;
-      padding: 15px 25px;
-      font-size: 16px;
+      border-radius: 8px;
+      padding: 10px 14px;
       font-weight: bold;
-      display: none;
+      cursor: pointer;
+    }
+
+    button:active { background: #1d4ed8; }
+
+    #resetBtn {
+      background: #475569;
+      margin-top: 10px;
+      width: 100%;
+    }
+
+    #playerTitle {
+      color: white;
+      text-align: center;
+      margin: 4px 0 12px;
+      font-size: 14px;
+      font-weight: bold;
     }
   </style>
 </head>
 
 <body>
 
-  <button id="playButton">
-    PLAY VIDEO AR
-  </button>
+  <div id="status">
+    Arahkan kamera ke gambar PLC Siemens
+  </div>
+
+  <!-- Persistent Video Player -->
+  <div id="player">
+    <div id="playerTitle">
+      PLC SIEMENS - AR VIDEO PLAYER
+    </div>
+
+    <div id="screen"></div>
+
+    <div class="controls">
+      <button id="playBtn">Play / Pause</button>
+      <button id="minusBtn">− Zoom</button>
+      <button id="plusBtn">+ Zoom</button>
+      <button id="fullBtn">Fullscreen</button>
+      <button id="replayBtn">Replay</button>
+    </div>
+
+    <button id="resetBtn">Scan Ulang</button>
+  </div>
 
   <a-scene
     mindar-image="imageTargetSrc: ./targets.mind;"
@@ -80,39 +163,97 @@
       </a-video>
 
     </a-entity>
-
   </a-scene>
 
   <script>
     const target = document.querySelector("#target");
     const video = document.querySelector("#videoAR");
-    const playButton = document.querySelector("#playButton");
+    const player = document.querySelector("#player");
+    const screen = document.querySelector("#screen");
+    const status = document.querySelector("#status");
 
-    let targetVisible = false;
+    let scanned = false;
+    let zoom = 1;
 
+    // Saat gambar pertama kali ditemukan
     target.addEventListener("targetFound", () => {
-      targetVisible = true;
+      if (scanned) return;
 
-      video.play().then(() => {
-        playButton.style.display = "none";
-      }).catch(() => {
-        playButton.style.display = "block";
+      scanned = true;
+      status.textContent = "PLC terdeteksi!";
+
+      video.play().catch(() => {
+        status.textContent =
+          "Ketuk Play setelah video muncul";
       });
     });
 
+    // Ketika gambar tidak lagi terdeteksi
     target.addEventListener("targetLost", () => {
-      targetVisible = false;
-      video.pause();
-      playButton.style.display = "none";
+      if (!scanned || player.style.display === "block") {
+        return;
+      }
+
+      // Pindahkan video ke player HTML
+      screen.appendChild(video);
+      player.style.display = "block";
+
+      status.textContent =
+        "Video aktif - tidak perlu scan ulang";
+
+      video.play().catch(() => {
+        status.textContent =
+          "Tekan Play untuk melanjutkan video";
+      });
     });
 
-    playButton.addEventListener("click", () => {
-      if (!targetVisible) return;
+    // Play / Pause
+    document.querySelector("#playBtn")
+      .addEventListener("click", () => {
+        if (video.paused) {
+          video.play().catch(console.error);
+        } else {
+          video.pause();
+        }
+      });
 
-      video.play().then(() => {
-        playButton.style.display = "none";
-      }).catch(console.error);
-    });
+    // Zoom In
+    document.querySelector("#plusBtn")
+      .addEventListener("click", () => {
+        zoom = Math.min(2.5, zoom + 0.25);
+        video.style.transform = `scale(${zoom})`;
+      });
+
+    // Zoom Out
+    document.querySelector("#minusBtn")
+      .addEventListener("click", () => {
+        zoom = Math.max(1, zoom - 0.25);
+        video.style.transform = `scale(${zoom})`;
+      });
+
+    // Fullscreen
+    document.querySelector("#fullBtn")
+      .addEventListener("click", () => {
+        if (screen.requestFullscreen) {
+          screen.requestFullscreen()
+            .catch(console.error);
+        } else if (video.webkitEnterFullscreen) {
+          video.webkitEnterFullscreen();
+        }
+      });
+
+    // Replay
+    document.querySelector("#replayBtn")
+      .addEventListener("click", () => {
+        video.currentTime = 0;
+        video.play().catch(console.error);
+      });
+
+    // Scan ulang
+    document.querySelector("#resetBtn")
+      .addEventListener("click", () => {
+        window.location.reload();
+      });
   </script>
 
 </body>
